@@ -9,83 +9,76 @@ from selenium_stealth import stealth
 from threading import Thread, Lock
 from datetime import datetime
 
-# [1] إعدادات المنظومة القتالية
+# [1] إعدادات المنظومة
 BOT_TOKEN = "6193186034:AAHpKPAGwUPi3Jr7-Uv4f5Sz-gmY8tH8bNI"
 bot = telebot.TeleBot(BOT_TOKEN)
 db_lock = Lock()
 
-def init_db():
-    with db_lock:
-        conn = sqlite3.connect('kali_army_v4.db')
-        c = conn.cursor()
-        c.execute('''CREATE TABLE IF NOT EXISTS army 
-            (id INTEGER PRIMARY KEY AUTOINCREMENT, user TEXT, pwd TEXT, 
-             cookies TEXT, status TEXT DEFAULT 'ACTIVE', created_at TEXT)''')
-        conn.commit()
-        conn.close()
-
-init_db()
-
 class KaliEngine:
     def get_driver(self):
-        """إنشاء متصفح مع صمام أمان للبروكسي"""
+        """إعدادات قتالية لمنع انهيار المتصفح في كالي"""
         options = webdriver.ChromeOptions()
-        # إعدادات البروكسي الصارمة لـ Tor
-        options.add_argument('--proxy-server=socks5://127.0.0.1:9050')
-        options.add_argument("--headless=new")
-        options.add_argument("--no-sandbox")
+        
+        # --- حل مشكلة Stacktrace والانهيار ---
+        options.add_argument("--no-sandbox") # ضروري جداً لمستخدم Root
+        options.add_argument("--disable-setuid-sandbox")
         options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--headless=new")
         options.add_argument("--disable-gpu")
         
-        # تجاوز أخطاء الاتصال بالبروكسي في كالي
-        options.add_argument("--proxy-bypass-list=<-loopback>")
+        # --- إعدادات البروكسي (Tor) ---
+        options.add_argument('--proxy-server=socks5://127.0.0.1:9050')
         options.add_argument("--ignore-certificate-errors")
-        options.add_argument(f"user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36")
         
+        # --- تمويه المتصفح ---
+        options.add_argument(f"user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36")
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option('useAutomationExtension', False)
+
         try:
             driver_path = shutil.which("chromedriver") or "/usr/bin/chromedriver"
+            binary_path = shutil.which("chromium") or "/usr/bin/chromium"
+            options.binary_location = binary_path
+            
             service = Service(executable_path=driver_path)
             driver = webdriver.Chrome(service=service, options=options)
+            
+            # منع التعليق (Timeouts)
+            driver.set_page_load_timeout(90)
+            
             stealth(driver, languages=["en-US", "en"], vendor="Google Inc.", platform="Win32", fix_hairline=True)
             return driver
         except Exception as e:
-            print(f"DEBUG: Proxy/Driver Error: {e}")
+            print(f"❌ خطأ في بدء المحرك: {e}")
             return None
 
     def warm_up_soldier(self, driver, chat_id, mid):
-        """تدفئة الحساب لرفع الموثوقية (متابعة Cristiano)"""
+        """تدفئة الحساب (متابعة Cristiano)"""
         try:
-            self.update_log(chat_id, mid, 90, "🛡️ جاري التدفئة (تجنب الحظر)...")
+            self.update_log(chat_id, mid, 90, "🛡️ تدفئة الحساب (تجاوز الحظر)...")
             driver.get("https://www.instagram.com/cristiano/")
-            time.sleep(6)
-            
-            # محاولة الضغط على زر المتابعة بمختلف الصيغ
+            time.sleep(7)
             follow_btn = WebDriverWait(driver, 15).until(
                 EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Follow')] | //div[text()='Follow']")))
             driver.execute_script("arguments[0].click();", follow_btn)
-            
-            # محاكاة نشاط بشري (Scrolling)
-            driver.execute_script("window.scrollTo(0, 700);")
             time.sleep(3)
             return True
-        except:
-            return False
+        except: return False
 
     def recruit(self, chat_id):
-        status_msg = bot.send_message(chat_id, "🌑 **بدء عملية التجنيد السيبرانية...**")
+        status_msg = bot.send_message(chat_id, "🚀 **جاري تشغيل المحرك في كالي...**")
         mid = status_msg.message_id
         driver = None
         
         try:
             driver = self.get_driver()
             if not driver:
-                bot.edit_message_text("❌ فشل البروكسي! تأكد من تشغيل Tor عبر: `sudo systemctl restart tor`", chat_id, mid)
+                bot.edit_message_text("❌ المحرك انهار! تأكد من تثبيت chromium-driver", chat_id, mid)
                 return
 
             wait = WebDriverWait(driver, 50)
-
             # 1. جلب البريد
-            self.update_log(chat_id, mid, 20, "توليد بريد سيبراني...")
+            self.update_log(chat_id, mid, 20, "سحب إيميل مؤقت...")
             driver.get("https://www.1secmail.com/")
             wait.until(EC.visibility_of_element_located((By.ID, "item-to-copy")))
             email = driver.find_element(By.ID, "item-to-copy").get_attribute("value")
@@ -93,21 +86,21 @@ class KaliEngine:
             # 2. تسجيل إنستغرام
             driver.execute_script("window.open('https://www.instagram.com/accounts/emailsignup/', '_blank');")
             driver.switch_to.window(driver.window_handles[1])
-            self.update_log(chat_id, mid, 40, f"محاولة التسجيل بـ: `{email}`")
+            self.update_log(chat_id, mid, 40, f"تجنيد بـ: {email}")
             
             wait.until(EC.presence_of_element_located((By.NAME, "emailOrPhone"))).send_keys(email)
             user = f"v_army_{random.randint(100,999)}_{os.urandom(2).hex()}"
-            pwd = f"K_Pass_{random.randint(1000,9999)}!"
+            pwd = f"K_Kali_{random.randint(1000,9999)}!"
             
-            driver.find_element(By.NAME, "fullName").send_keys("Ghost Agent")
+            driver.find_element(By.NAME, "fullName").send_keys("Kali Ghost")
             driver.find_element(By.NAME, "username").send_keys(user)
             driver.find_element(By.NAME, "password").send_keys(pwd)
-            time.sleep(2)
+            time.sleep(3)
             driver.find_element(By.XPATH, "//button[@type='submit']").click()
             
             # تخطي الميلاد
             try:
-                wait.until(EC.presence_of_element_located((By.XPATH, "//select[@title='Year:']"))).send_keys("1998")
+                wait.until(EC.presence_of_element_located((By.XPATH, "//select[@title='Year:']"))).send_keys("1995")
                 driver.find_element(By.XPATH, "//button[text()='Next']").click()
             except: pass
 
@@ -126,53 +119,45 @@ class KaliEngine:
             if otp:
                 driver.switch_to.window(driver.window_handles[1])
                 wait.until(EC.presence_of_element_located((By.NAME, "email_confirmation_code"))).send_keys(otp)
-                time.sleep(3)
+                time.sleep(2)
                 driver.find_element(By.XPATH, "//button[text()='Next']").click()
-                time.sleep(8) 
+                time.sleep(10)
 
-                # --- التدفئة الإلزامية ---
                 self.warm_up_soldier(driver, chat_id, mid)
                 
-                # حفظ البيانات والكوكيز
-                cookies = json.dumps(driver.get_cookies())
+                # حفظ البيانات
                 with db_lock:
                     conn = sqlite3.connect('kali_army_v4.db')
-                    conn.execute("INSERT INTO army (user, pwd, cookies, created_at) VALUES (?, ?, ?, ?)", 
-                                 (user, pwd, cookies, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                    conn.execute("INSERT INTO army (user, pwd, created_at) VALUES (?, ?, ?)", 
+                                 (user, pwd, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
                     conn.commit()
                     conn.close()
                 
-                self.update_log(chat_id, mid, 100, f"✅ تم الحفظ والتدفئة: `{user}`")
+                self.update_log(chat_id, mid, 100, f"✅ تم بنجاح: `{user}`")
             else:
-                bot.edit_message_text("❌ لم يتم استلام كود OTP. (تور بطيء جداً)", chat_id, mid)
+                bot.edit_message_text("❌ لم يصل الكود (تور بطيء).", chat_id, mid)
 
         except Exception as e:
-            bot.send_message(chat_id, f"⚠️ خطأ غير متوقع: {str(e)[:100]}")
+            bot.send_message(chat_id, f"⚠️ خطأ: {str(e)[:50]}")
         finally:
             if driver: driver.quit()
 
     def update_log(self, chat_id, mid, percent, status):
         bar = "▓" * (percent // 10) + "░" * (10 - (percent // 10))
-        text = f"🔥 **OVERLORD KALI EDITION**\n\n{bar} {percent}%\n📍 {status}"
+        text = f"💀 **KALI OVERLORD V55**\n\n{bar} {percent}%\n📍 {status}"
         try: bot.edit_message_text(text, chat_id, mid, parse_mode="Markdown")
         except: pass
 
-# [واجهة التحكم]
+# [الواجهة]
 @bot.message_handler(commands=['start'])
-def main_panel(m):
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(types.InlineKeyboardButton("🚀 تجنيد جندي جاهز للرشق", callback_data="mass"),
-               types.InlineKeyboardButton("📊 إحصائيات الجيش", callback_data="db"))
-    bot.send_message(m.chat.id, "🔱 **مركز إدارة مشروع الرشق**\nالنظام مجهز بصمامات أمان للبروكسي وتدفئة تلقائية.", reply_markup=markup)
+def main(m):
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("🚀 تجنيد حساب (Kali Special)", callback_data="run"))
+    bot.send_message(m.chat.id, "🔱 **نظام الرشق - نسخة كالي المستقرة**", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: True)
-def handle_actions(call):
-    if call.data == "mass":
+def btn(call):
+    if call.data == "run":
         Thread(target=KaliEngine().recruit, args=(call.message.chat.id,)).start()
-    elif call.data == "db":
-        conn = sqlite3.connect('kali_army_v4.db')
-        count = conn.execute("SELECT COUNT(*) FROM army").fetchone()[0]
-        bot.answer_callback_query(call.id, f"لديك {count} جندي في القاعدة.", show_alert=True)
-        conn.close()
 
 bot.infinity_polling()
