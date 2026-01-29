@@ -8,7 +8,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium_stealth import stealth
 from threading import Thread
 
-# [1] الإعدادات
+# [1] الإعدادات الأساسية
 BOT_TOKEN = "6193186034:AAHpKPAGwUPi3Jr7-Uv4f5Sz-gmY8tH8bNI"
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -34,7 +34,7 @@ class UltimateEngine:
 
     def update_progress(self, chat_id, msg_id, percent, status):
         bar = "🟦" * (percent // 10) + "⬜" * (10 - (percent // 10))
-        text = f"⚙️ **نظام القيادة البصري**\n\n{bar} {percent}%\n📍 الحالة: {status}"
+        text = f"⚙️ **مركز القيادة المطور**\n\n{bar} {percent}%\n📍 الحالة: {status}"
         try: bot.edit_message_text(text, chat_id, msg_id, parse_mode="Markdown")
         except: pass
 
@@ -44,16 +44,27 @@ class UltimateEngine:
         driver = None
         try:
             driver = self.create_driver()
-            wait = WebDriverWait(driver, 30)
+            wait = WebDriverWait(driver, 40)
 
-            # --- الخطوة 1: توليد الإيميل بصرياً ---
-            self.update_progress(chat_id, mid, 20, "فتح تبويب البريد المؤقت...")
+            # --- الخطوة 1: توليد الإيميل (تجاوز خطأ JS) ---
+            self.update_progress(chat_id, mid, 20, "توليد بريد (مزامنة ذكية)...")
             driver.get("https://www.1secmail.com/")
-            time.sleep(5)
-            email = driver.execute_script("return document.getElementById('item-to-copy').value")
             
+            # الانتظار حتى يصبح حقل الإيميل مرئياً
+            wait.until(EC.visibility_of_element_located((By.ID, "item-to-copy")))
+            
+            email = ""
+            for i in range(10): # محاولات متكررة في حال بطء تور
+                email = driver.find_element(By.ID, "item-to-copy").get_attribute("value")
+                if email and "@" in email:
+                    break
+                time.sleep(2)
+            
+            if not email or "@" not in email:
+                email = driver.execute_script("return document.getElementById('item-to-copy').value")
+
             # --- الخطوة 2: التسجيل في إنستغرام ---
-            self.update_progress(chat_id, mid, 40, f"التسجيل بـ: {email}")
+            self.update_progress(chat_id, mid, 40, f"تجنيد بـ: {email}")
             driver.execute_script("window.open('https://www.instagram.com/accounts/emailsignup/', '_blank');")
             driver.switch_to.window(driver.window_handles[1])
             
@@ -69,55 +80,55 @@ class UltimateEngine:
             
             # تخطي تاريخ الميلاد
             try:
-                time.sleep(5)
+                time.sleep(6)
                 year = wait.until(EC.presence_of_element_located((By.XPATH, "//select[@title='Year:']")))
-                year.send_keys("1997")
+                year.send_keys("1998")
                 driver.find_element(By.XPATH, "//button[text()='Next']").click()
             except: pass
 
             # --- الخطوة 3: جلب OTP بصرياً ---
-            self.update_progress(chat_id, mid, 70, "العودة للبريد لجلب الكود...")
+            self.update_progress(chat_id, mid, 75, "العودة للبريد لجلب الكود...")
             otp = None
-            driver.switch_to.window(driver.window_handles[0]) # العودة للتبويب الأول (البريد)
+            driver.switch_to.window(driver.window_handles[0]) # التبويب الأول
             
             for i in range(15):
                 driver.refresh()
-                time.sleep(8)
+                time.sleep(10)
                 try:
-                    # محاولة الضغط على أول رسالة تصل
+                    # البحث عن أول رسالة والضغط عليها
                     msg_link = driver.find_element(By.PARTIAL_LINK_TEXT, "Instagram")
                     msg_link.click()
-                    time.sleep(3)
-                    body_text = driver.find_element(By.ID, "messageText").text
-                    res = re.findall(r'\b\d{6}\b', body_text)
+                    time.sleep(4)
+                    body = driver.page_source
+                    res = re.findall(r'\b\d{6}\b', body)
                     if res: 
                         otp = res[0]
                         break
                 except: pass
-                self.update_progress(chat_id, mid, 70, f"انتظار OTP (محاولة {i+1}/15)")
+                self.update_progress(chat_id, mid, 75, f"فحص الرسائل.. ({i+1}/15)")
 
-            # --- الخطوة 4: تأكيد الحساب ---
+            # --- الخطوة 4: التفعيل النهائي ---
             if otp:
-                driver.switch_to.window(driver.window_handles[1]) # العودة لإنستغرام
+                driver.switch_to.window(driver.window_handles[1]) # تبويب إنستغرام
                 wait.until(EC.presence_of_element_located((By.NAME, "email_confirmation_code"))).send_keys(otp)
-                time.sleep(2)
+                time.sleep(3)
                 driver.find_element(By.XPATH, "//button[text()='Next']").click()
                 
                 cursor.execute('INSERT INTO army (user, pwd) VALUES (?, ?)', (user, pwd))
                 conn.commit()
-                self.update_progress(chat_id, mid, 100, f"✅ تم التجنيد: `{user}`")
+                self.update_progress(chat_id, mid, 100, f"✅ تم الحفظ: `{user}`")
             else:
-                bot.edit_message_text("❌ لم يصل الكود لموقع البريد.", chat_id, mid)
+                bot.edit_message_text("❌ لم يظهر الكود في البريد.", chat_id, mid)
 
         except Exception as e:
-            if driver: driver.save_screenshot("visual_error.png")
-            bot.send_photo(chat_id, open("visual_error.png", "rb"), caption=f"⚠️ خلل: {str(e)[:50]}")
+            if driver: driver.save_screenshot("visual_crash.png")
+            bot.send_photo(chat_id, open("visual_crash.png", "rb"), caption=f"⚠️ خلل تقني: {str(e)[:50]}")
         finally:
             if driver: driver.quit()
 
 engine = UltimateEngine()
 
-# --- واجهة الأزرار المائية ---
+# --- الواجهة التفاعلية ---
 def main_menu():
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -130,12 +141,12 @@ def main_menu():
 
 @bot.message_handler(commands=['start'])
 def welcome(m):
-    bot.send_message(m.chat.id, "💀 **OVERLORD V33 - VISUAL ENGINE**\nتحكم بسيرفر الرشق الخاص بك:", reply_markup=main_menu())
+    bot.send_message(m.chat.id, "💀 **نظام OVERLORD V35 المطور**\nتم حل مشاكل المزامنة.. اختر المهمة:", reply_markup=main_menu())
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_query(call):
     if call.data == "gen_multi":
-        msg = bot.send_message(call.message.chat.id, "🔢 كم حساباً تريد إنشاؤه؟")
+        msg = bot.send_message(call.message.chat.id, "🔢 كم جندي تريد تجنيده؟")
         bot.register_next_step_handler(msg, process_gen_count)
     elif call.data == "status":
         cursor.execute('SELECT COUNT(*) FROM army')
@@ -147,16 +158,14 @@ def handle_query(call):
         with open("army.csv", "w") as f:
             f.write("Username,Password\n")
             for r in rows: f.write(f"{r[0]},{r[1]}\n")
-        bot.send_document(call.message.chat.id, open("army.csv", "rb"), caption="🛡️ بيانات الجيش")
-    elif call.data == "attack_start":
-        bot.send_message(call.message.chat.id, "🎯 أرسل: `/attack [target] [count]`")
+        bot.send_document(call.message.chat.id, open("army.csv", "rb"), caption="🛡️ كشف حسابات الجيش")
 
 def process_gen_count(m):
     try:
         count = int(m.text)
         for _ in range(count):
             Thread(target=engine.deploy_soldier, args=(m.chat.id,)).start()
-            time.sleep(5)
+            time.sleep(6)
     except: bot.send_message(m.chat.id, "⚠️ أرسل رقماً صحيحاً!")
 
 bot.infinity_polling()
