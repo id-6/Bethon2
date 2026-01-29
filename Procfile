@@ -1,1 +1,0 @@
-worker: bash sython.py
