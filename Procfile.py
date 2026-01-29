@@ -1,4 +1,5 @@
-import telebot, requests, random, time, sqlite3, os, re
+import telebot, requests, random, time, sqlite3, os, re, shutil
+from telebot import types
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
@@ -23,8 +24,10 @@ class UltimateEngine:
         options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        options.binary_location = "/usr/bin/chromium"
-        service = Service(executable_path="/usr/bin/chromedriver")
+        chrome_path = shutil.which("chromium") or "/usr/bin/chromium"
+        options.binary_location = chrome_path
+        driver_path = shutil.which("chromedriver") or "/usr/bin/chromedriver"
+        service = Service(executable_path=driver_path)
         dr = webdriver.Chrome(service=service, options=options)
         stealth(dr, languages=["en-US"], vendor="Google Inc.", platform="Win32", fix_hairline=True)
         return dr
@@ -35,49 +38,44 @@ class UltimateEngine:
         try: bot.edit_message_text(text, chat_id, msg_id, parse_mode="Markdown")
         except: pass
 
-    # --- وحدة الإنشاء ---
     def deploy_soldier(self, chat_id):
-        status_msg = bot.send_message(chat_id, "🚀 بدء المحرك...")
+        status_msg = bot.send_message(chat_id, "🚀 بدء عملية التجنيد...")
         mid = status_msg.message_id
-        driver = self.create_driver()
-        wait = WebDriverWait(driver, 25)
-        
+        driver = None
         try:
-            self.update_progress(chat_id, mid, 10, "توليد بريد مؤقت...")
+            driver = self.create_driver()
+            wait = WebDriverWait(driver, 25)
+            self.update_progress(chat_id, mid, 20, "فتح الموقع وتوليد بريد...")
             email = requests.get("https://www.1secmail.com/api/v1/?action=genAddrs&count=1").json()[0]
-            
-            self.update_progress(chat_id, mid, 30, "فتح صفحة التسجيل...")
             driver.get("https://www.instagram.com/accounts/emailsignup/")
             
             wait.until(EC.presence_of_element_located((By.NAME, "emailOrPhone"))).send_keys(email)
-            user = f"army_{random.randint(1000,99999)}"
+            user = f"v_army_{random.randint(1000,99999)}"
             pwd = f"King_{random.randint(1000,9999)}!"
             driver.find_element(By.NAME, "fullName").send_keys("Ghost Soldier")
             driver.find_element(By.NAME, "username").send_keys(user)
             driver.find_element(By.NAME, "password").send_keys(pwd)
             
-            self.update_progress(chat_id, mid, 50, "إرسال البيانات وتجاوز الميلاد...")
             submit = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@type='submit']")))
             driver.execute_script("arguments[0].click();", submit)
             
             try:
-                time.sleep(4)
+                time.sleep(5)
                 year = wait.until(EC.presence_of_element_located((By.XPATH, "//select[@title='Year:']")))
                 year.send_keys("1998")
                 driver.find_element(By.XPATH, "//button[text()='Next']").click()
             except: pass
 
-            self.update_progress(chat_id, mid, 70, "بانتظار وصول الكود (OTP)...")
+            self.update_progress(chat_id, mid, 70, "انتظار كود OTP...")
             u, d = email.split('@')
             otp = None
-            for i in range(12):
-                time.sleep(10)
+            for _ in range(15):
+                time.sleep(8)
                 mails = requests.get(f"https://www.1secmail.com/api/v1/?action=getMessages&login={u}&domain={d}").json()
                 if mails:
                     msg = requests.get(f"https://www.1secmail.com/api/v1/?action=readMessage&login={u}&domain={d}&id={mails[0]['id']}").json()
                     res = re.findall(r'\b\d{6}\b', msg['body'])
                     if res: otp = res[0]; break
-                self.update_progress(chat_id, mid, 70 + i, f"انتظار الكود.. محاولة {i+1}")
             
             if otp:
                 wait.until(EC.presence_of_element_located((By.NAME, "email_confirmation_code"))).send_keys(otp)
@@ -85,56 +83,57 @@ class UltimateEngine:
                 driver.find_element(By.XPATH, "//button[text()='Next']").click()
                 cursor.execute('INSERT INTO army (user, pwd) VALUES (?, ?)', (user, pwd))
                 conn.commit()
-                self.update_progress(chat_id, mid, 100, f"✅ تم التجنيد بنجاح: `{user}`")
-            else:
-                bot.send_message(chat_id, "❌ فشل: لم يصل كود OTP.")
+                self.update_progress(chat_id, mid, 100, f"✅ تم التجنيد: `{user}`")
+            else: bot.edit_message_text("❌ لم يصل الكود.", chat_id, mid)
         except Exception as e:
             driver.save_screenshot("crash.png")
-            bot.send_photo(chat_id, open("crash.png", "rb"), caption=f"⚠️ حدث خلل فني:\n`{str(e)[:100]}`", parse_mode="Markdown")
-        finally: driver.quit()
-
-    # --- وحدة الهجوم ---
-    def follow_attack(self, chat_id, target, amount):
-        cursor.execute('SELECT user, pwd FROM army LIMIT ?', (amount,))
-        accs = cursor.fetchall()
-        status_msg = bot.send_message(chat_id, f"🎯 بدء الهجوم على {target}...")
-        mid = status_msg.message_id
-        
-        completed = 0
-        for acc in accs:
-            try:
-                dr = self.create_driver()
-                dr.get("https://www.instagram.com/accounts/login/")
-                time.sleep(5)
-                WebDriverWait(dr, 10).until(EC.presence_of_element_located((By.NAME, "username"))).send_keys(acc[0])
-                dr.find_element(By.NAME, "password").send_keys(acc[1])
-                dr.find_element(By.XPATH, "//button[@type='submit']").click()
-                time.sleep(8)
-                dr.get(f"https://www.instagram.com/{target}/")
-                time.sleep(4)
-                btn = dr.find_element(By.XPATH, "//button[contains(text(), 'Follow')]")
-                dr.execute_script("arguments[0].click();", btn)
-                completed += 1
-                self.update_progress(chat_id, mid, int((completed/len(accs))*100), f"الجندي {acc[0]} نفذ المهمة")
-            except Exception as e:
-                bot.send_message(chat_id, f"❌ فشل الجندي {acc[0]}: {str(e)[:40]}")
-            finally: dr.quit()
+            bot.send_photo(chat_id, open("crash.png", "rb"), caption=f"⚠️ خلل: {str(e)[:40]}")
+        finally:
+            if driver: driver.quit()
 
 engine = UltimateEngine()
 
+# --- لوحة التحكم ---
+def main_menu():
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        types.InlineKeyboardButton("➕ تجنيد حسابات", callback_data="gen_multi"),
+        types.InlineKeyboardButton("🎯 رشق متابعة", callback_data="attack_start"),
+        types.InlineKeyboardButton("📊 حالة الجيش", callback_data="status"),
+        types.InlineKeyboardButton("📥 تحميل البيانات", callback_data="export")
+    )
+    return markup
+
 @bot.message_handler(commands=['start'])
-def start(m):
-    cursor.execute('SELECT COUNT(*) FROM army')
-    count = cursor.fetchone()[0]
-    bot.reply_to(m, f"💀 **OVERLORD SMM CONTROL**\n\n📊 الجيش المتوفر: `{count}`\n\n/gen - تجنيد حساب جديد\n/attack [user] [count] - رشق متابعة")
+def welcome(m):
+    bot.send_message(m.chat.id, "💀 **غرفة العمليات المركزية**\nاختر من الأزرار المائية أدناه:", reply_markup=main_menu())
 
-@bot.message_handler(commands=['gen'])
-def gen(m): Thread(target=engine.deploy_soldier, args=(m.chat.id,)).start()
+@bot.callback_query_handler(func=lambda call: True)
+def handle_query(call):
+    if call.data == "gen_multi":
+        msg = bot.send_message(call.message.chat.id, "🔢 كم جندي تريد تجنيده؟ (ارسل الرقم فقط)")
+        bot.register_next_step_handler(msg, process_gen_count)
+    elif call.data == "status":
+        cursor.execute('SELECT COUNT(*) FROM army')
+        count = cursor.fetchone()[0]
+        bot.answer_callback_query(call.id, f"عدد الجيش: {count} جندي")
+    elif call.data == "export":
+        cursor.execute('SELECT user, pwd FROM army')
+        rows = cursor.fetchall()
+        with open("army_data.csv", "w") as f:
+            f.write("Username,Password\n")
+            for r in rows: f.write(f"{r[0]},{r[1]}\n")
+        bot.send_document(call.message.chat.id, open("army_data.csv", "rb"), caption="🛡️ ملف بيانات الجيش بالكامل")
+    elif call.data == "attack_start":
+        bot.send_message(call.message.chat.id, "🎯 أرسل: `/attack [target] [count]`\nمثال: `/attack omar.7 10`", parse_mode="Markdown")
 
-@bot.message_handler(commands=['attack'])
-def atk(m):
-    args = m.text.split()
-    if len(args) == 3: Thread(target=engine.follow_attack, args=(m.chat.id, args[1], int(args[2]))).start()
-    else: bot.reply_to(m, "⚠️ استخدم: /attack [target] [count]")
+def process_gen_count(m):
+    try:
+        count = int(m.text)
+        bot.send_message(m.chat.id, f"⚔️ جاري إطلاق {count} عملية تجنيد...")
+        for _ in range(count):
+            Thread(target=engine.deploy_soldier, args=(m.chat.id,)).start()
+            time.sleep(3)
+    except: bot.send_message(m.chat.id, "❌ يرجى إرسال رقم صحيح.")
 
 bot.infinity_polling()
