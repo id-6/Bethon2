@@ -10,7 +10,7 @@ from threading import Thread, Lock
 from webdriver_manager.chrome import ChromeDriverManager
 from datetime import datetime
 
-# [1] إعدادات المنظومة
+# [1] إعدادات المنظومة - تأكد من التوكن الخاص بك
 BOT_TOKEN = "6193186034:AAHpKPAGwUPi3Jr7-Uv4f5Sz-gmY8tH8bNI"
 bot = telebot.TeleBot(BOT_TOKEN)
 db_lock = Lock()
@@ -27,64 +27,91 @@ init_db()
 
 class WindowsEngine:
     def get_driver(self):
+        """محرك ويندوز - تم تعطيل البروكسي لتجنب أخطاء الاتصال"""
         options = webdriver.ChromeOptions()
-        # إذا لم تشغل Tor حالياً، يمكنك تعطيل سطر البروكسي بوضع # قبله
-        # options.add_argument('--proxy-server=socks5://127.0.0.1:9050') 
+        
+        # خيارات التشغيل المستقر
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        # options.add_argument("--headless=new") # فعل هذا لاحقاً ليعمل البوت في الخلفية
+        options.add_argument("--disable-gpu")
+        # ملاحظة: إذا أردت إخفاء المتصفح لاحقاً، فعل السطر التالي:
+        # options.add_argument("--headless=new") 
         
         try:
+            # تحميل التعريف المناسب لكروم ويندوز تلقائياً
             service = Service(ChromeDriverManager().install())
             driver = webdriver.Chrome(service=service, options=options)
-            stealth(driver, languages=["en-US", "en"], vendor="Google Inc.", platform="Win32", fix_hairline=True)
+            
+            # تمويه المتصفح
+            stealth(driver,
+                    languages=["en-US", "en"],
+                    vendor="Google Inc.",
+                    platform="Win32",
+                    webgl_vendor="Intel Inc.",
+                    renderer="Intel Iris OpenGL Engine",
+                    fix_hairline=True)
             return driver
         except Exception as e:
-            print(f"Error: {e}"); return None
+            print(f"❌ خطأ في تشغيل المتصفح: {e}")
+            return None
 
     def recruit(self, chat_id):
-        status_msg = bot.send_message(chat_id, "🚀 **بدء التجنيد على ويندوز...**")
+        status_msg = bot.send_message(chat_id, "🚀 **بدء عملية التجنيد (Windows Mode)...**")
         mid = status_msg.message_id
         driver = self.get_driver()
+        
         if not driver:
-            bot.edit_message_text("❌ فشل تشغيل المتصفح.", chat_id, mid); return
+            bot.edit_message_text("❌ فشل تشغيل المحرك. تأكد من إغلاق أي متصفح كروم مفتوح بواسطة سكريبت قديم.", chat_id, mid)
+            return
 
         try:
-            # 1. جلب الإيميل
+            # 1. جلب الإيميل المؤقت
             driver.get("https://www.1secmail.com/")
-            email = WebDriverWait(driver, 30).until(EC.visibility_of_element_located((By.ID, "item-to-copy"))).get_attribute("value")
+            wait = WebDriverWait(driver, 40)
+            email = wait.until(EC.visibility_of_element_located((By.ID, "item-to-copy"))).get_attribute("value")
             
-            # 2. تسجيل إنستغرام
+            self.update_log(chat_id, mid, 30, f"تم سحب إيميل: `{email}`")
+
+            # 2. فتح إنستغرام في نافذة جديدة
             driver.execute_script("window.open('https://www.instagram.com/accounts/emailsignup/', '_blank');")
             driver.switch_to.window(driver.window_handles[1])
             
             user = f"win_{random.randint(10,99)}_{os.urandom(2).hex()}"
-            pwd = f"Win_Kali_{random.randint(1000,9999)}!"
+            pwd = f"Pass_{random.randint(1000,9999)}!X"
             
-            WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.NAME, "emailOrPhone"))).send_keys(email)
-            driver.find_element(By.NAME, "fullName").send_keys("Windows Agent")
+            self.update_log(chat_id, mid, 50, "إدخال البيانات في إنستغرام...")
+            
+            wait.until(EC.presence_of_element_located((By.NAME, "emailOrPhone"))).send_keys(email)
+            driver.find_element(By.NAME, "fullName").send_keys("Agent Windows")
             driver.find_element(By.NAME, "username").send_keys(user)
             driver.find_element(By.NAME, "password").send_keys(pwd)
-            time.sleep(2); driver.find_element(By.XPATH, "//button[@type='submit']").click()
+            time.sleep(2)
+            driver.find_element(By.XPATH, "//button[@type='submit']").click()
             
-            # (تكملة خطوات الميلاد و OTP تبقى كما هي في الكود السابق)
-            bot.edit_message_text(f"📡 جاري انتظار الكود للإيميل: {email}", chat_id, mid)
-            # ... (بقية الكود المعتاد) ...
-            
-        except Exception as e: bot.send_message(chat_id, f"⚠️ خطأ: {str(e)[:50]}")
-        finally: driver.quit()
+            # 3. إكمال الخطوات (التاريخ والـ OTP)
+            # ملاحظة: هنا سيتوقف المتصفح لترى ماذا يحدث أمامك
+            bot.send_message(chat_id, f"📡 **الآن المتصفح مفتوح أمامك!**\nتابع عملية إدخال الكود يدوياً أو برمجياً.\nيوزر: `{user}`\nباسورد: `{pwd}`")
 
-# [واجهة التحكم]
+        except Exception as e:
+            bot.send_message(chat_id, f"⚠️ خطأ أثناء العمل: {str(e)[:100]}")
+        # لا تغلق المتصفح (driver.quit) حالياً لكي ترى النتيجة
+
+    def update_log(self, chat_id, mid, percent, status):
+        bar = "▓" * (percent // 10) + "░" * (10 - (percent // 10))
+        text = f"🛡️ **KALI-WIN SYSTEM**\n\n{bar} {percent}%\n📍 {status}"
+        try: bot.edit_message_text(text, chat_id, mid, parse_mode="Markdown")
+        except: pass
+
 @bot.message_handler(commands=['start'])
-def main(m):
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(types.InlineKeyboardButton("🚀 تجنيد جندي (Windows Mode)", callback_data="run"))
-    bot.send_message(m.chat.id, "🔱 **نظام الرشق - نسخة ويندوز المستقرة**", reply_markup=markup)
+def start_cmd(m):
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("🚀 بدء التجنيد", callback_data="run"))
+    bot.send_message(m.chat.id, "🔱 **نظام الرشق - نسخة ويندوز المباشرة**\nاضغط الزر لبدء تشغيل المتصفح.", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: True)
-def btn(call):
+def handle_query(call):
     if call.data == "run":
         Thread(target=WindowsEngine().recruit, args=(call.message.chat.id,)).start()
 
+print("✅ البوت يعمل الآن... اذهب لتليجرام وأرسل /start")
 bot.infinity_polling()
-
